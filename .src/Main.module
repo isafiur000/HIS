@@ -1,0 +1,141 @@
+' Gambas module file
+
+Public $CryptZip As String = "23qP53Xxszqytppz6uRIr9"  ''only for 7z archiving for non-repository
+Private $SysConfigPath As String
+Private $SysFTPHost As String
+Private $SysFTPFolder As String
+Private $SysFTPUser As String
+Private $SysFTPPass As String
+
+Public Sub Main()
+
+  If Not Exist(User.Home &/ "healthybit") Then
+    Mkdir User.Home &/ "healthybit"
+  Endif
+  If Exist(User.Home &/ "healthybit" &/ "healthybit") Then
+    Kill User.Home &/ "healthybit" &/ "healthybit"
+  Endif
+  SetAppConfigFile()
+  ReadConfigFile()
+  GetFileFromLocalFTP("healthybit")
+  If Exist(User.Home &/ "healthybit" &/ "healthybit") Then
+    Shell "chmod a+x " & User.Home &/ "healthybit" &/ "healthybit"
+    Shell "gnome-terminal" & " -e " & User.Home &/ "healthybit" &/ "healthybit"
+  Endif
+
+End
+
+Public Sub SetAppConfigFile()
+
+  If Exist("/etc/healthybit/healthybit.conf") Then
+    $SysConfigPath = "/etc/healthybit/healthybit.conf"
+  Else
+    $SysConfigPath = "/etc/healthybit/healthybit.conf.7z"
+  Endif
+
+End
+
+Public Function GetConfigSettingFIle() As String
+
+  Dim xfile As String
+
+  xfile = Temp() & ".conf"
+  If $SysConfigPath = "/etc/healthybit/healthybit.conf" Then
+    File.Save(xfile, File.Load("/etc/healthybit/healthybit.conf"))
+  Else
+    Get7ZExtraction("/etc/healthybit/healthybit.conf.7z", $CryptZip, xfile)
+  Endif
+  Return xfile
+
+End
+
+Public Sub ReadConfigFile()
+
+  Dim xfile As String
+
+  xfile = GetConfigSettingFIle()
+  $SysFTPHost = ShowSettingValue(xfile, "LocalFTP/Host")
+  $SysFTPFolder = ShowSettingValue(xfile, "LocalFTP/Folder")
+  $SysFTPUser = ShowSettingValue(xfile, "LocalFTP/User")
+  $SysFTPPass = DecryptSimple(ShowSettingValue(xfile, "LocalFTP/Password"))
+  Try Kill xfile
+
+End
+
+Public Sub GetFileFromLocalFTP(sLink As String)
+
+  Dim sHost As String
+  Dim sFTP As String
+  Dim sUser As String
+  Dim sPass As String
+  Dim sPath As String
+  Dim sTarget As String
+  Dim xcmd As String
+  Dim xtemp As String
+
+  sHost = $SysFTPHost
+  If sHost Then
+    sFTP = $SysFTPFolder
+    sUser = $SysFTPUser
+    sPass = $SysFTPPass
+    sPath = "ftp://" & sHost &/ sFTP &/ sLink
+    sTarget = User.Home &/ "healthybit"
+    If Not Exist(sTarget) Then
+      Mkdir sTarget
+    Endif
+
+    If System.Exist("wget") Then
+      xtemp = Temp() & ".log"
+      xcmd = "wget -o " & xtemp & " --ftp-user=" & Quote(sUser) & " --ftp-password=" & Quote(sPass) & Space(1) & Quote(sPath) & " -P " & sTarget
+      Shell xcmd Wait
+    Endif
+  Endif
+
+End
+
+Public Function ShowSettingValue(sFile As String, strSetting As String) As String
+
+  Dim ConfFile As Settings
+  Dim strVal As String
+  Dim xx As String
+
+  ConfFile = New Settings(sFile)
+  strVal = ConfFile[strSetting, Null]
+  If strVal Then
+    xx = Trim(strVal)
+  Else
+    xx = ""
+  Endif
+  Return xx
+
+End
+
+Public Function DecryptSimple(txtoutput As String) As String
+
+  Dim Iw As String
+  Dim i As Integer
+  Dim a As String
+  Dim xx As String
+
+  xx = txtoutput
+  Iw = ""
+  For i = 0 To (Len(xx) / 3) - 1
+    a = CInt(Mid(xx, ((i * 3) + 1), 3))
+    Iw = Iw & Chr(a)
+  Next
+
+  Return Iw
+
+End
+
+Public Sub Get7ZExtraction(CompressedPath As String, sPassword As String, UnCompressedPath As String)
+
+  Dim xcmd As String
+
+  If System.Exist("7z") Then
+    xcmd = "7z x " & CompressedPath & " -p" & sPassword & " -o" & File.Dir(UnCompressedPath)
+    Shell xcmd Wait
+    Move File.Dir(UnCompressedPath) &/ Replace(File.Name(CompressedPath), ".7z", "") To UnCompressedPath
+  Endif
+
+End
