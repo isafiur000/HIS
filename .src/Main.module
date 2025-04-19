@@ -2,22 +2,33 @@
 
 Public $CryptZip As String = "23qP53Xxszqytppz6uRIr9"  ''only for 7z archiving for non-repository
 Private $SysConfigPath As String
-Private $SysFTPHost As String
-Private $SysFTPFolder As String
-Private $SysFTPUser As String
-Private $SysFTPPass As String
 
 Public Sub Main()
 
   If Not Exist(User.Home &/ "healthybit") Then
     Mkdir User.Home &/ "healthybit"
   Endif
+  $SysConfigPath = "/etc/healthybit/healthybit.conf"
+
+  ''get setting files
+  If Not Exist(User.Home &/ ".config/healthybit") Then
+    If Not Exist(User.Home &/ "healthybit" &/ "config.zip") Then
+      GetFileFromLocalFTP("https://bitnepal.safiur.com.np/healthybit/Ubuntu22.04/govt/config.zip", User.Home &/ "healthybit", "config.zip")
+    Endif
+    Exec ["unzip", User.Home &/ "healthybit" &/ "config.zip", "-d", User.Home &/ "healthybit"] Wait
+    Print "Uncompressed : " & User.Home &/ "healthybit" &/ "config.zip"
+    Shell "cp -a " & User.Home &/ "healthybit" &/ "config" & Space(1) & User.Home &/ ".config/healthybit" Wait
+  Endif
+
+  ''get executables
   If Exist(User.Home &/ "healthybit" &/ "healthybit") Then
     Kill User.Home &/ "healthybit" &/ "healthybit"
   Endif
-  SetAppConfigFile()
-  ReadConfigFile()
-  GetFileFromLocalFTP("healthybit")
+  GetFileFromLocalFTP("https://bitnepal.safiur.com.np/healthybit/Ubuntu22.04/govt/healthybit.zip", User.Home &/ "healthybit", "healthybit.zip")
+  If Exist(User.Home &/ "healthybit" &/ "healthybit.zip") Then
+    Get7ZExtraction(User.Home &/ "healthybit" &/ "healthybit.zip", $CryptZip, User.Home &/ "healthybit" &/ "healthybit")
+  Endif
+
   If Exist(User.Home &/ "healthybit" &/ "healthybit") Then
     Shell "chmod a+x " & User.Home &/ "healthybit" &/ "healthybit"
     Shell "gnome-terminal" & " -e " & User.Home &/ "healthybit" &/ "healthybit"
@@ -25,74 +36,7 @@ Public Sub Main()
 
 End
 
-Public Sub SetAppConfigFile()
-
-  If Exist("/etc/healthybit/healthybit.conf") Then
-    $SysConfigPath = "/etc/healthybit/healthybit.conf"
-  Else
-    $SysConfigPath = "/etc/healthybit/healthybit.conf.7z"
-  Endif
-
-End
-
-Public Function GetConfigSettingFIle() As String
-
-  Dim xfile As String
-
-  xfile = Temp() & ".conf"
-  If $SysConfigPath = "/etc/healthybit/healthybit.conf" Then
-    File.Save(xfile, File.Load("/etc/healthybit/healthybit.conf"))
-  Else
-    Get7ZExtraction("/etc/healthybit/healthybit.conf.7z", $CryptZip, xfile)
-  Endif
-  Return xfile
-
-End
-
-Public Sub ReadConfigFile()
-
-  Dim xfile As String
-
-  xfile = GetConfigSettingFIle()
-  $SysFTPHost = ShowSettingValue(xfile, "LocalFTP/Host")
-  $SysFTPFolder = ShowSettingValue(xfile, "LocalFTP/Folder")
-  $SysFTPUser = ShowSettingValue(xfile, "LocalFTP/User")
-  $SysFTPPass = DecryptSimple(ShowSettingValue(xfile, "LocalFTP/Password"))
-  Try Kill xfile
-
-End
-
-Public Sub GetFileFromLocalFTP(sLink As String)
-
-  Dim sHost As String
-  Dim sFTP As String
-  Dim sUser As String
-  Dim sPass As String
-  Dim sPath As String
-  Dim sTarget As String
-  Dim xcmd As String
-  Dim xtemp As String
-
-  sHost = $SysFTPHost
-  If sHost Then
-    sFTP = $SysFTPFolder
-    sUser = $SysFTPUser
-    sPass = $SysFTPPass
-    sPath = "ftp://" & sHost &/ sFTP &/ sLink
-    sTarget = User.Home &/ "healthybit"
-    If Not Exist(sTarget) Then
-      Mkdir sTarget
-    Endif
-
-    If System.Exist("wget") Then
-      xtemp = Temp() & ".log"
-      xcmd = "wget -o " & xtemp & " --ftp-user=" & Quote(sUser) & " --ftp-password=" & Quote(sPass) & Space(1) & Quote(sPath) & " -P " & sTarget
-      Shell xcmd Wait
-    Endif
-  Endif
-
-End
-
+''================= Procedures ==========================
 Public Function ShowSettingValue(sFile As String, strSetting As String) As String
 
   Dim ConfFile As Settings
@@ -128,6 +72,19 @@ Public Function DecryptSimple(txtoutput As String) As String
 
 End
 
+Public Sub GetFileFromLocalFTP(sLink As String, sFolder As String, sFile As String)
+
+  Dim arcmd As String[]
+
+  If Not Exist(sFolder) Then
+    Mkdir sFolder
+  Endif
+  arcmd = ["wget", "--no-cache", "-o", Temp() & ".log", sLink, "-O", sFolder &/ sFile]
+  Exec arcmd Wait
+  Print "Downloaded : " & sFolder &/ sFile
+
+End
+
 Public Sub Get7ZExtraction(CompressedPath As String, sPassword As String, UnCompressedPath As String)
 
   Dim xcmd As String
@@ -135,7 +92,7 @@ Public Sub Get7ZExtraction(CompressedPath As String, sPassword As String, UnComp
   If System.Exist("7z") Then
     xcmd = "7z x " & CompressedPath & " -p" & sPassword & " -o" & File.Dir(UnCompressedPath)
     Shell xcmd Wait
-    Move File.Dir(UnCompressedPath) &/ Replace(File.Name(CompressedPath), ".7z", "") To UnCompressedPath
+    Print "Uncompressed : " & CompressedPath
   Endif
 
 End
